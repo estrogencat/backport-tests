@@ -31,7 +31,7 @@ no discord binaries are included here. bring your own decrypted ipa.
   drops `LockscreenWidget.appex` (ios 16.2+), and neuters one discord call
   site that drives an ios 16 window-scene api (`neuter.py`).
 - **verifies.** `verify.py` resolves every import of all four binaries
-  against the ios 15 cache, the shim and the bundled frameworks, and the
+  against ios 15's exports, the shim and the bundled frameworks, and the
   build fails unless **strong-missing is 0**. `checkshim.py`, `shimverify.py`
   and `clockverify.py` re-derive the shim's structure and each stub's register
   contract from the emitted bytes, because a wrong abi in a stub does not
@@ -43,16 +43,12 @@ signing is left to trollstore.
 
 - python 3.12+
 - `capstone` (`pip install capstone`) for the verification and debug scripts
-- an extracted **ios 15 dyld shared cache** (`dyld_shared_cache_arm64*`,
-  matching your device's ios version, e.g. pulled from an ipsw)
 - a **decrypted** discord ipa
 - a jailbroken or trollstore device for installing
 
 ## usage
 
-    export DSC=/path/to/extracted/dsc
-    export IPA=/path/to/discord-350.0-decrypted.ipa
-    ./run.sh
+    IPA=/path/to/discord-350.0-decrypted.ipa ./run.sh
 
 the patched ipa lands in `out/<VER>/Discord<VER>-ios15.ipa`. install it with
 trollstore however you like.
@@ -66,17 +62,10 @@ lists, which are what to diff between releases.
 
 ### github actions
 
-the **build** workflow (actions -> build -> run workflow) does the same in a
-runner and uploads the patched ipa as an artifact. it needs:
-
-- `ipa_url`: a direct link to a decrypted ipa
-- one of `dsc_url` (a zip or tar of an extracted shared cache) or `ipsw_url`
-  (an ios 15 ipsw; only the cache is pulled out of it, with
-  [ipsw](https://github.com/blacktop/ipsw))
-
-any of these can be set as a repository secret (`IPA_URL`, `DSC_URL`,
-`IPSW_URL`) instead of an input, which keeps the links off the run page. the
-extracted cache is kept in the actions cache between runs.
+the **build** workflow (actions -> build -> run workflow) does the same on an
+ubuntu runner and uploads the patched ipa as an artifact. it only needs
+`ipa_url`, a direct link to a decrypted ipa. it can also be set as the
+repository secret `IPA_URL`, which keeps the link off the run page.
 
 artifacts on a public repository can be downloaded by anyone signed in to
 github, and they are kept for 7 days.
@@ -107,6 +96,22 @@ treat them as starting points for a new release, not as fixed tools.
 
 `python -E -P callsite.py <binary> <imageOffset>` turns a crash offset into
 the surrounding code and the objc selector being sent.
+
+## what ios 15 exports
+
+the checks need to know every symbol ios 15 exports. that lives in the
+dyld shared cache, which is gigabytes, so the repo instead ships
+**`ios15-exports.txt.xz`** (7 MB): for each of the cache's 2406 images, its
+exported symbols and the images it re-exports, 1.4 million symbols in all,
+taken from ios **15.7.7 (19H357)**.
+
+`collect15.py` reads either that file or an extracted cache directory and
+produces the same index; for discord 350.0 the two were compared and are
+identical, and the resulting binaries are byte-identical to the build
+verified on the device. to target a different ios 15 release, extract its
+cache and either point `DSC` at the directory or regenerate the dump:
+
+    python -I dumpdb.py /path/to/extracted/dsc ios15-exports.txt.xz
 
 ## known issues
 

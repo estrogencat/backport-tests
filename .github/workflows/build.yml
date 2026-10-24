@@ -1,11 +1,11 @@
 name: build
 
 # patches a decrypted discord ipa for ios 15 and uploads the result as an
-# artifact. nothing here is committed back: the ipa and the shared cache only
-# ever exist inside the runner.
+# artifact. what ios 15 exports comes from the shipped ios15-exports.txt.xz,
+# so no shared cache is downloaded. the ipa only ever exists in the runner.
 #
-# the ipa link and the cache source can be given as inputs or, to keep them
-# out of the run page, as the repository secrets IPA_URL / DSC_URL / IPSW_URL.
+# the ipa link can be an input or, to keep it off the run page, the
+# repository secret IPA_URL.
 
 on:
   workflow_dispatch:
@@ -16,12 +16,6 @@ on:
         required: true
       ipa_url:
         description: direct link to a decrypted discord ipa (empty = IPA_URL secret)
-        required: false
-      dsc_url:
-        description: zip or tar of an extracted ios 15 dyld shared cache (empty = DSC_URL secret)
-        required: false
-      ipsw_url:
-        description: or an ios 15 ipsw to pull the shared cache out of (empty = IPSW_URL secret)
         required: false
 
 permissions:
@@ -42,77 +36,19 @@ jobs:
       - name: install capstone
         run: pip install capstone
 
-      - name: resolve sources
-        id: src
-        env:
-          IN_IPA: ${{ inputs.ipa_url }}
-          IN_DSC: ${{ inputs.dsc_url }}
-          IN_IPSW: ${{ inputs.ipsw_url }}
-          SEC_IPA: ${{ secrets.IPA_URL }}
-          SEC_DSC: ${{ secrets.DSC_URL }}
-          SEC_IPSW: ${{ secrets.IPSW_URL }}
-        run: |
-          ipa=${IN_IPA:-$SEC_IPA}
-          dsc=${IN_DSC:-$SEC_DSC}
-          ipsw=${IN_IPSW:-$SEC_IPSW}
-          [ -n "$ipa" ] || { echo "::error::no ipa: set ipa_url or the IPA_URL secret"; exit 1; }
-          [ -n "$dsc$ipsw" ] || { echo "::error::no shared cache: set dsc_url or ipsw_url"; exit 1; }
-          for v in "$ipa" "$dsc" "$ipsw"; do [ -n "$v" ] && echo "::add-mask::$v"; done
-          {
-            echo "ipa=$ipa"
-            echo "dsc=$dsc"
-            echo "ipsw=$ipsw"
-            # the cache key only needs to tell sources apart, not reveal them
-            echo "key=dsc-$(printf '%s' "$dsc$ipsw" | sha256sum | cut -c1-16)"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: cache the shared cache
-        id: dsccache
-        uses: actions/cache@v4
-        with:
-          path: dsc
-          key: ${{ steps.src.outputs.key }}
-
-      - name: fetch the shared cache (archive)
-        if: steps.dsccache.outputs.cache-hit != 'true' && steps.src.outputs.dsc != ''
-        env:
-          URL: ${{ steps.src.outputs.dsc }}
-        run: |
-          mkdir -p dl dsc
-          curl -fsSL "$URL" -o dl/dsc.archive
-          case "$(file -b dl/dsc.archive)" in
-            Zip*) unzip -q dl/dsc.archive -d dl/x ;;
-            *)    mkdir -p dl/x && tar -xf dl/dsc.archive -C dl/x ;;
-          esac
-          find dl/x -type f -name 'dyld_shared_cache_arm64*' ! -name '*.symbols' -exec mv {} dsc/ \;
-          rm -rf dl
-
-      - name: fetch the shared cache (ipsw)
-        if: steps.dsccache.outputs.cache-hit != 'true' && steps.src.outputs.dsc == '' && steps.src.outputs.ipsw != ''
-        env:
-          URL: ${{ steps.src.outputs.ipsw }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p tools dl dsc
-          gh release download -R blacktop/ipsw --pattern 'ipsw_*_linux_x86_64.tar.gz' -D tools
-          tar -xzf tools/ipsw_*_linux_x86_64.tar.gz -C tools
-          # --remote pulls only the cache out of the ipsw instead of the whole file
-          tools/ipsw extract --dyld --remote "$URL" --output dl
-          find dl -type f -name 'dyld_shared_cache_arm64*' ! -name '*.symbols' -exec mv {} dsc/ \;
-          rm -rf dl tools
-
-      - name: check the shared cache
-        run: |
-          ls -la dsc
-          ls dsc | grep -q '^dyld_shared_cache_arm64e\?$' || { echo "::error::no dyld_shared_cache_arm64 in dsc/"; exit 1; }
-
       - name: fetch the ipa
         env:
-          URL: ${{ steps.src.outputs.ipa }}
-        run: curl -fsSL "$URL" -o discord.ipa
+          IN_IPA: ${{ inputs.ipa_url }}
+          SEC_IPA: ${{ secrets.IPA_URL }}
+        run: |
+          url=${IN_IPA:-$SEC_IPA}
+          [ -n "$url" ] || { echo "::error::no ipa: set ipa_url or the IPA_URL secret"; exit 1; }
+          echo "::add-mask::$url"
+          curl -fsSL "$url" -o discord.ipa
+          ls -la discord.ipa
 
       - name: patch and verify
-        run: DSC="$PWD/dsc" IPA="$PWD/discord.ipa" sh ./run.sh
+        run: IPA="$PWD/discord.ipa" sh ./run.sh
 
       - uses: actions/upload-artifact@v4
         with:
