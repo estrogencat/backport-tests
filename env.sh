@@ -1,5 +1,5 @@
 # everything machine-specific comes from the environment. run.sh only needs
-# DSC and IPA; the phone scripts also need PHONE.
+# IPA; the phone scripts also need PHONE.
 
 # the phone, reachable over ssh as root (e.g. a dopamine/palera1n jailbreak)
 PHONE=${PHONE:-}
@@ -8,8 +8,9 @@ KEY_ROOT=${KEY_ROOT:-~/.ssh/id_ed25519}
 BUNDLE=${BUNDLE:-com.hammerandchisel.discord}
 DBG_PORT=${DBG_PORT:-1234}
 
-# an extracted ios 15.x dyld shared cache (the dyld_shared_cache_arm64* files)
-DSC=${DSC:-}
+# what ios 15 exports: the shipped dump (made from 15.7.7 by dumpdb.py), or
+# a directory holding an extracted ios 15 dyld shared cache
+DSC=${DSC:-ios15-exports.txt.xz}
 
 # which discord release we are targeting, and the decrypted ipa it comes from
 VER=${VER:-350}
