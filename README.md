@@ -41,7 +41,7 @@ signing is left to trollstore.
 
 ## requirements
 
-- python 3.10+
+- python 3.12+
 - `capstone` (`pip install capstone`) for the verification and debug scripts
 - an extracted **ios 15 dyld shared cache** (`dyld_shared_cache_arm64*`,
   matching your device's ios version, e.g. pulled from an ipsw)
@@ -63,6 +63,23 @@ the next release is one line, and prints how the shim surface changed:
 
 `out/` is entirely regenerable. `syms/<VER>/` holds the per-binary shim symbol
 lists, which are what to diff between releases.
+
+### github actions
+
+the **build** workflow (actions -> build -> run workflow) does the same in a
+runner and uploads the patched ipa as an artifact. it needs:
+
+- `ipa_url`: a direct link to a decrypted ipa
+- one of `dsc_url` (a zip or tar of an extracted shared cache) or `ipsw_url`
+  (an ios 15 ipsw; only the cache is pulled out of it, with
+  [ipsw](https://github.com/blacktop/ipsw))
+
+any of these can be set as a repository secret (`IPA_URL`, `DSC_URL`,
+`IPSW_URL`) instead of an input, which keeps the links off the run page. the
+extracted cache is kept in the actions cache between runs.
+
+artifacts on a public repository can be downloaded by anyone signed in to
+github, and they are kept for 7 days.
 
 ### on-device helpers
 
