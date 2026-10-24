@@ -1,0 +1,6 @@
+out/
+crashes/
+__pycache__/
+*.ipa
+*.ips
+*.pkl
