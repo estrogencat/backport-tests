@@ -17,7 +17,7 @@ class Cache:
             for i in range(mc):
                 a, sz, fo, mx, ini = struct.unpack_from('<QQQII', h, mo + 32 * i)
                 s.maps.append((a, sz, fo, idx))
-            if f.endswith('arm64'):
+            if f.endswith(('arm64', 'arm64e')):
                 io, ic = struct.unpack_from('<II', h, 0x1c0)
                 s.imgoff, s.imgcount, s.main = io, ic, idx
 
